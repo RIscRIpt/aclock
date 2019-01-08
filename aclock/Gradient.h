@@ -6,6 +6,9 @@ class Gradient {
 public:
     Gradient(cv::Mat const &image, int ddepth = CV_32F);
 
+    inline cv::Mat const& x() const noexcept { return x_; }
+    inline cv::Mat const& y() const noexcept { return y_; }
+
     cv::Mat directionInRadians();
     cv::Mat directionInDegrees();
     cv::Mat magnitude();
