@@ -5,15 +5,42 @@
     <ClCompile Include="Gradient.cpp">
       <Filter>Gradient</Filter>
     </ClCompile>
+    <ClCompile Include="ClockFaceHoughTransform.cpp">
+      <Filter>ClockFaceHoughTransform</Filter>
+    </ClCompile>
+    <ClCompile Include="ClockFaceFinder.cpp">
+      <Filter>ClockFaceFinder</Filter>
+    </ClCompile>
+    <ClCompile Include="ClockFace.cpp">
+      <Filter>ClockFace</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Gradient">
       <UniqueIdentifier>{5f9fd129-de7b-409d-ab3f-71c03fe4a756}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ClockFaceHoughTransform">
+      <UniqueIdentifier>{afc76260-3e40-4d55-8d1e-c024b701bdf5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ClockFaceFinder">
+      <UniqueIdentifier>{f5d1df32-c17f-4a17-8b2a-1c246016969e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ClockFace">
+      <UniqueIdentifier>{18344f43-84ac-4b4c-b222-a3aa474336ed}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Gradient.h">
       <Filter>Gradient</Filter>
+    </ClInclude>
+    <ClInclude Include="ClockFaceHoughTransform.h">
+      <Filter>ClockFaceHoughTransform</Filter>
+    </ClInclude>
+    <ClInclude Include="ClockFaceFinder.h">
+      <Filter>ClockFaceFinder</Filter>
+    </ClInclude>
+    <ClInclude Include="ClockFace.h">
+      <Filter>ClockFace</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
