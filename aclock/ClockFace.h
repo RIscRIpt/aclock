@@ -1,5 +1,8 @@
 #pragma once
 
+#include <opencv2/core.hpp>
+
 struct ClockFace {
-    int x, y, r;
+    cv::Point location;
+    int radius;
 };

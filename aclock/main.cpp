@@ -17,12 +17,16 @@ int main(int argc, char const *argv[]) {
     }
 
     ClockFaceFinder cff(image);
-    cff.setDebug(true);
-    auto steps = cff.get_steps();
-    for (auto const &step : steps) {
-        cv::imshow("step", step);
-        cv::waitKey();
-    }
+    //cff.setDebug(true);
+    //auto steps = cff.getSteps();
+    //for (auto const &step : steps) {
+    //    cv::imshow("Debug", step);
+    //    cv::waitKey();
+    //}
+    //cv::destroyAllWindows();
+    cv::imshow("Result", cff.getMaskedImage());
+    while (cv::waitKey() != 27)
+        ;
 
 	return 0;
 }
