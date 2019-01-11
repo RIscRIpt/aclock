@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <optional>
 
 #include <opencv2/core.hpp>
 
@@ -11,9 +12,9 @@ public:
     ClockFaceFinder(cv::Mat const &image, float min_clock_alignment = 0.5f, int preferred_size = 128);
 
     void execute();
-    ClockFace const& find();
+    std::optional<ClockFace> const& find();
     std::vector<cv::Mat> const& getSteps();
-    cv::Mat getMaskedImage();
+    std::optional<cv::Mat> getMaskedImage();
 
     void setDebug(bool enable);
 
@@ -39,6 +40,7 @@ private:
 
     cv::Mat image_;
     std::vector<cv::Mat> debug_steps_;
+    bool found_;
     ClockFace found_clock_;
 
     float total_progress_;

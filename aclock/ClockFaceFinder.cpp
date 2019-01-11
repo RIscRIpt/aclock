@@ -15,6 +15,7 @@ ClockFaceFinder::ClockFaceFinder(cv::Mat const &image, float min_clock_alignment
     , executed_(false)
     , debug_(false)
     , max_progress_(1.0f)
+    , found_(false)
     , found_clock_({ {0, 0}, -1 })
 {
     image_ = image.clone();
@@ -23,8 +24,10 @@ ClockFaceFinder::ClockFaceFinder(cv::Mat const &image, float min_clock_alignment
     }
 }
 
-ClockFace const& ClockFaceFinder::find() {
+std::optional<ClockFace> const& ClockFaceFinder::find() {
     execute();
+    if (!found_)
+        return std::nullopt;
     return found_clock_;
 }
 
@@ -33,8 +36,10 @@ std::vector<cv::Mat> const& ClockFaceFinder::getSteps() {
     return debug_steps_;
 }
 
-cv::Mat ClockFaceFinder::getMaskedImage() {
+std::optional<cv::Mat> ClockFaceFinder::getMaskedImage() {
     execute();
+    if (!found_)
+        return std::nullopt;
     auto result = image_.clone();
     cv::Mat mask = cv::Mat::zeros(image_.size(), image_.type());
     cv::circle(mask, found_clock_.location, found_clock_.radius, cv::Scalar::all(1), -1);
@@ -94,7 +99,6 @@ float ClockFaceFinder::resize(cv::Mat &image) {
 }
 
 void ClockFaceFinder::find_clock(cv::Mat const &image, float resize_factor, float min_radius, float max_radius, float radius_step) {
-    bool found = false;
     struct {
         double max_value;
         float radius;
@@ -125,7 +129,7 @@ void ClockFaceFinder::find_clock(cv::Mat const &image, float resize_factor, floa
             detection_candidate.radius = radius;
             cv::minMaxLoc(test, nullptr, &detection_candidate.max_value, nullptr, &detection_candidate.location);
             if (detection_candidate.max_value > detection_peak.max_value) {
-                found = true;
+                found_ = true;
                 detection_peak = detection_candidate;
             }
 
@@ -139,7 +143,7 @@ void ClockFaceFinder::find_clock(cv::Mat const &image, float resize_factor, floa
         }
     }
 
-    if (found) {
+    if (found_) {
         found_clock_ = {
             detection_peak.location / resize_factor,
             static_cast<int>(detection_peak.radius / resize_factor)
