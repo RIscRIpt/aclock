@@ -9,10 +9,13 @@
 
 #include "Gradient.h"
 
-ClockFaceFinder::ClockFaceFinder(cv::Mat const &image)
-    : executed_(false)
+ClockFaceFinder::ClockFaceFinder(cv::Mat const &image, float min_clock_alignment, int preferred_size)
+    : min_clock_alignment_(min_clock_alignment)
+    , preferred_size_(preferred_size)
+    , executed_(false)
     , debug_(false)
     , max_progress_(1.0f)
+    , found_clock_({ {0, 0}, -1 })
 {
     image_ = image.clone();
     if (image_.channels() != 1) {
@@ -20,9 +23,9 @@ ClockFaceFinder::ClockFaceFinder(cv::Mat const &image)
     }
 }
 
-std::vector<ClockFace> const& ClockFaceFinder::find() {
+ClockFace const& ClockFaceFinder::find() {
     execute();
-    return found_;
+    return found_clock_;
 }
 
 std::vector<cv::Mat> const& ClockFaceFinder::getSteps() {
@@ -33,13 +36,12 @@ std::vector<cv::Mat> const& ClockFaceFinder::getSteps() {
 cv::Mat ClockFaceFinder::getMaskedImage() {
     execute();
     auto result = image_.clone();
-    for (auto const &found : found_) {
-        cv::Mat mask = cv::Mat::zeros(image_.size(), image_.type());
-        cv::circle(mask, found.location, found.radius, cv::Scalar::all(1), -1);
-        std::cout << found.location << '\n' << found.radius << '\n';
-        result = result.mul(mask);
-    }
-    return result;
+    cv::Mat mask = cv::Mat::zeros(image_.size(), image_.type());
+    cv::circle(mask, found_clock_.location, found_clock_.radius, cv::Scalar::all(1), -1);
+    result = result.mul(mask);
+    std::vector<cv::Point> non_zeros;
+    cv::findNonZero(result, non_zeros);
+    return result(cv::boundingRect(non_zeros));
 }
 
 void ClockFaceFinder::setDebug(bool enable) {
@@ -52,23 +54,16 @@ void ClockFaceFinder::execute() {
     }
     executed_ = true;
 
-    std::vector<cv::Mat> detections, final_detections;
-
-    struct {
-        size_t index;
-        double max_value;
-        cv::Point location;
-    } detection_candidate{ 0 }, detection_peak{ 0 };
-
-    float const min_radius = 10;
-    float const max_radius = std::min(image_.rows, image_.cols);
-    float const radius_step = 1.0f;
-
-    initializeProgress(1.0f / (5.0f + (max_radius - min_radius) * 2.0f));
-
-    reportProgress("preprocessing");
-
     auto image = image_.clone();
+    preprocess(image);
+    auto resize_factor = resize(image);
+    find_clock(image, resize_factor, 10.0f, std::min(image.rows, image.cols), 1.0f);
+}
+
+void ClockFaceFinder::preprocess(cv::Mat &image) {
+    if (debug_) {
+        std::cout << "preprocessing\n";
+    }
 
     debug(image);
 
@@ -84,50 +79,86 @@ void ClockFaceFinder::execute() {
     cv::GaussianBlur(image, image, { 7, 7 }, 1);
     debug(image);
 
-    reportProgress("preprocessing done");
+    if (debug_) {
+        std::cout << "preprocessing done\n";
+    }
+}
+
+float ClockFaceFinder::resize(cv::Mat &image) {
+    if (image.rows > preferred_size_ && image.cols > preferred_size_) {
+        float factor = static_cast<float>(preferred_size_) / static_cast<float>(cv::max(image.rows, image.cols));
+        cv::resize(image, image, {}, factor, factor);
+        return factor;
+    }
+    return 1.0f;
+}
+
+void ClockFaceFinder::find_clock(cv::Mat const &image, float resize_factor, float min_radius, float max_radius, float radius_step) {
+    bool found = false;
+    struct {
+        double max_value;
+        float radius;
+        cv::Point location;
+    } detection_candidate{ 0 }, detection_peak{ 0 };
+
+    initializeProgress(1.0f / (max_radius - min_radius));
 
     for (float radius = min_radius; radius < max_radius; radius += radius_step) {
-        reportProgress("detecting clock with radius %f/%f", radius, max_radius);
+        stepProgress();
+        if (debug_) {
+            std::cout << total_progress_ << " | detecting clock with radius " << radius << '/' << max_radius << '\t';
+        }
+
+        cv::Mat clock = makeMatClock(radius);
+        cv::threshold(clock, clock, 0, 0, CV_THRESH_TOZERO);
+        float threshold = cv::sum(clock)[0] * min_clock_alignment_;
 
         cv::Mat test;
-        cv::filter2D(image, test, CV_32F, makeMatClock(radius), { -1, -1 }, 0.0, cv::BORDER_CONSTANT);
-        test = test.mul(test); // square test matrix
-        debugNormalized(test);
-        detections.emplace_back(std::move(test));
-    }
+        cv::filter2D(image, test, CV_32F, clock, { -1, -1 }, 0.0, cv::BORDER_CONSTANT);
+        cv::threshold(test, test, threshold, 0, CV_THRESH_TOZERO);
 
-    reportProgress("detection done");
+        if (cv::countNonZero(test) > 0) {
+            cv::GaussianBlur(test, test, { 5, 5 }, 1);
 
-    // Smooth over 3 neighbour detections
-    for (int i = 0; i < detections.size(); i++) {
-        reportProgress("smooting detection layer %i/%li", i + 1, detections.size());
+            debugNormalized(test);
 
-        auto first = std::max(i - 2, 0);
-        auto last = std::min(i + 2, static_cast<int>(detections.size()) - 1);
+            detection_candidate.radius = radius;
+            cv::minMaxLoc(test, nullptr, &detection_candidate.max_value, nullptr, &detection_candidate.location);
+            if (detection_candidate.max_value > detection_peak.max_value) {
+                found = true;
+                detection_peak = detection_candidate;
+            }
 
-        auto current = detections[i].clone();
-        
-        for (int i = first; i <= last; i++) {
-            current += detections[i];
+            if (debug_) {
+                std::cout << "found candidate with value " << detection_peak.max_value << '\n';
+            }
+        } else {
+            if (debug_) {
+                std::cout << "nothing found\n";
+            }
         }
-        cv::GaussianBlur(current, current, { 5, 5 }, 1);
-
-        detection_candidate.index = final_detections.size();
-        cv::minMaxLoc(current, nullptr, &detection_candidate.max_value, nullptr, &detection_candidate.location);
-        if (detection_candidate.max_value > detection_peak.max_value)
-            detection_peak = detection_candidate;
-
-        debugNormalized(current);
-        final_detections.emplace_back(std::move(current));
     }
 
-    reportProgress("masking input image");
+    if (found) {
+        found_clock_ = {
+            detection_peak.location / resize_factor,
+            static_cast<int>(detection_peak.radius / resize_factor)
+        };
 
-    int radius = min_radius + static_cast<float>(detection_peak.index) * radius_step;
-    std::cout << detection_peak.index << '\n' << radius << '\n';
-    found_.push_back({ detection_peak.location, radius });
+        if (debug_) {
+            std::cout << "clock found\n"
+                << "location: " << found_clock_.location << '\n'
+                << "radius:   " << found_clock_.radius << '\n';
+        }
+    } else {
+        if (debug_) {
+            std::cout << "no clock found\n";
+        }
+    }
 
-    reportProgress("done");
+    if (debug_) {
+        std::cout << "done\n";
+    }
 }
 
 void ClockFaceFinder::debug(cv::Mat const &image) {
@@ -139,7 +170,26 @@ void ClockFaceFinder::debug(cv::Mat const &image) {
 void ClockFaceFinder::debugNormalized(cv::Mat const &image) {
     if (debug_) {
         cv::Mat normalized;
-        cv::normalize(image, normalized, 0, 1, CV_MINMAX);
+        switch (image.type()) {
+            case CV_32F:
+            case CV_64F:
+                cv::normalize(image, normalized, 0, 1, CV_MINMAX);
+                break;
+            case CV_8U:
+                cv::normalize(image, normalized, 0, 255, CV_MINMAX);
+                break;
+            case CV_8S:
+                cv::normalize(image, normalized, -128, 127, CV_MINMAX);
+                break;
+            case CV_16U:
+                cv::normalize(image, normalized, 0, 65535, CV_MINMAX);
+                break;
+            case CV_16S:
+                cv::normalize(image, normalized, -32768, 32767, CV_MINMAX);
+                break;
+            default:
+                throw std::runtime_error("unsupported type");
+        }
         debug_steps_.push_back(normalized);
     }
 }
@@ -148,20 +198,8 @@ void ClockFaceFinder::initializeProgress(float step) {
     progress_step_ = step;
 }
 
-void ClockFaceFinder::reportProgress(char const *fmt, ...) {
+void ClockFaceFinder::stepProgress() {
     total_progress_ += progress_step_;
-
-    std::vector<char> buffer(1024);
-
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buffer.data(), buffer.size(), fmt, ap);
-    va_end(ap);
-
-    int flags = std::cout.flags();
-    std::cout << std::fixed << std::setprecision(6) << total_progress_ << '\t';
-    std::cout.flags(flags);
-    std::cout << buffer.data() << '\n';
 }
 
 cv::Mat ClockFaceFinder::makeMatSquare(int size) const {

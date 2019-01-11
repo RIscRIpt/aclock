@@ -144,14 +144,12 @@
   <ItemGroup>
     <ClCompile Include="ClockFace.cpp" />
     <ClCompile Include="ClockFaceFinder.cpp" />
-    <ClCompile Include="ClockFaceHoughTransform.cpp" />
     <ClCompile Include="Gradient.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ClockFace.h" />
     <ClInclude Include="ClockFaceFinder.h" />
-    <ClInclude Include="ClockFaceHoughTransform.h" />
     <ClInclude Include="Gradient.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
