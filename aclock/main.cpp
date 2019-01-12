@@ -43,9 +43,21 @@ int main(int argc, char const *argv[]) {
         }
         cv::destroyAllWindows();
 
-        auto time = cfr.getTime();
-        std::cout << time.first << ':' << time.second << '\n';
-        getch();
+        if (auto time = cfr.getTime(); time.has_value()) {
+            std::cout << "Time: ";
+            if (time->first < 9)
+                std::cout << '0';
+            std::cout << time->first << ':';
+            if (time->second < 9)
+                std::cout << '0';
+            std::cout << time->second << '\n';
+        } else {
+            std::cout << "Couldn't determine time.\n";
+        }
+
+        cv::imshow("Result", steps.back());
+        while (cv::waitKey() != 27)
+            ;
     }
 
 	return 0;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <opencv2/core.hpp>
 
 #include "Algorithm.h"
@@ -10,18 +12,22 @@ public:
 
     virtual void execute();
     virtual std::vector<cv::Mat> const& getSteps();
-    std::pair<int, int> getTime();
+    std::optional<std::pair<int, int>> getTime();
 
 private:
     void preprocess(cv::Mat &image);
 
-    int determineInnerRadius(cv::Mat const &image);
-    std::pair<int, int> countNonZeroOnRadius(cv::Mat const &image, cv::Point const &center, float angle, int radius, int offset = 0) const;
+    static bool pointBelongsToCenter(cv::Point const &center, int radius, cv::Point const &p);
+    static std::vector<std::pair<cv::Point, cv::Point>> filterLines(cv::Point const &center, int radius, std::vector<cv::Vec4i> const &points);
+    static int lineLength(std::pair<cv::Point, cv::Point> const &line);
+    static float lineAngle(std::pair<cv::Point, cv::Point> const &line);
 
-    int angleToHours(float angle) const;
-    int angleToMinutes(float angle) const;
+    static int angleToHours(float angle);
+    static int angleToMinutes(float angle);
 
-    cv::Mat makeMatSquare(int size) const;
+    static cv::Mat makeMatSquare(int size);
+
+    static std::pair<cv::Point, cv::Point> vec4iToPointPair(cv::Vec4i const &vec);
 
     std::pair<int, int> time_;
 };

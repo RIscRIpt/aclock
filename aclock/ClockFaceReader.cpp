@@ -20,8 +20,10 @@ std::vector<cv::Mat> const& ClockFaceReader::getSteps() {
     return debug_steps_;
 }
 
-std::pair<int, int> ClockFaceReader::getTime() {
+std::optional<std::pair<int, int>> ClockFaceReader::getTime() {
     execute();
+    if (time_.first == -1 && time_.second == -1)
+        return std::nullopt;
     return time_;
 }
 
@@ -34,61 +36,28 @@ void ClockFaceReader::execute() {
     auto resize_factor = resize(image);
     preprocess(image);
 
-    if (image.type() != CV_32F) {
-        throw std::runtime_error("image.type() must be CV_32F");
-    }
+    std::vector<cv::Vec4i> all_lines;
+    cv::HoughLinesP(image, all_lines, 1, CV_PI / 360.0, 10, std::min(image.cols, image.rows) / 8, 1);
 
-    int const radius = cv::min(image.rows, image.cols) / 2;
-    float const rotation_step = 2 * CV_PI / 60.0;
-    auto inner_radius = determineInnerRadius(image) * 1.33;
+    auto lines = filterLines(image.size() / 2, std::min(image.cols, image.rows) / 8, all_lines);
 
-    if (inner_radius <= 0)
-        return;
-
-    std::deque<std::pair<float, int>> extrema;
-
-    for (float inner_angle = 0.0f; inner_angle < 2 * CV_PI; inner_angle += rotation_step) {
-        cv::Point center = image.size() / 2;
-        center.x += std::sin(inner_angle) * inner_radius;
-        center.y -= std::cos(inner_angle) * inner_radius;
-
-        for (float angle = 0.0f; angle < 2 * CV_PI; angle += rotation_step) {
-            int line_start = 0;
-            int line_end = 0;
-
-            for (int line_length = 1; line_length <= radius / 3; line_length++) {
-                auto non_zero = countNonZeroOnRadius(image, center, angle, line_length);
-                if (non_zero.first == 0)
-                    continue;
-                line_start = line_length;
-                break;
-            }
-
-            if (line_start == 0)
-                continue;
-
-            int max_non_zero = -1;
-            for (int line_length = line_start + 1; line_length <= radius; line_length++) {
-                auto non_zero = countNonZeroOnRadius(image, center, angle, line_length, line_start);
-                if (non_zero.first < non_zero.second) {
-                    line_end = line_length - 1;
-                    break;
-                }
-                max_non_zero = non_zero.first;
-            }
-
-            if (line_end <= line_start)
-                continue;
-
-            if (extrema.empty() || extrema.back().second < max_non_zero) {
-                if (extrema.size() > 2)
-                    extrema.pop_front();
-                extrema.push_back({ angle, max_non_zero });
-            }
+    if (debug_) {
+        cv::Mat debug_image;
+        cv::cvtColor(image, debug_image, cv::COLOR_GRAY2BGR);
+        for (auto line : lines) {
+            cv::line(debug_image, line.first, line.second, cv::Scalar(0, 0, 255), 3, cv::LINE_AA);
         }
+        debug(debug_image);
     }
 
-    time_ = { angleToHours(extrema.front().first), angleToMinutes(extrema.back().first) };
+    if (lines.size() == 2) {
+        if (lineLength(lines[0]) > lineLength(lines[1])) {
+            std::swap(lines[0], lines[1]);
+        }
+
+        time_.first = angleToHours(lineAngle(lines[0]));
+        time_.second = angleToMinutes(lineAngle(lines[1]));
+    }
 }
 
 void ClockFaceReader::preprocess(cv::Mat &image) {
@@ -101,19 +70,36 @@ void ClockFaceReader::preprocess(cv::Mat &image) {
     cv::medianBlur(image, image, 5);
     debug(image);
 
-    cv::normalize(Gradient(image).magnitude(), image, 0, 1, CV_MINMAX, CV_32F);
+    cv::Mat mask = cv::Mat::zeros(image.size(), image.type());
+    cv::circle(mask, image.size() / 2, std::min(image.rows, image.cols) / 4, cv::Scalar::all(1));
+    auto total_non_zero = cv::countNonZero(mask);
+    mask = mask.mul(image);
+    cv::threshold(mask, mask, 0.5, 1, CV_THRESH_BINARY);
+    auto masked_non_zero = cv::countNonZero(mask);
+    if (masked_non_zero >= total_non_zero / 2) {
+        image = 255 - image;
+        // reapply circular clock face mask
+        mask = cv::Mat::zeros(image.size(), image.type());
+        cv::circle(mask, image.size() / 2, std::min(image.rows, image.cols) / 2, cv::Scalar::all(1), -1);
+        image = image.mul(mask);
+    }
     debug(image);
 
-    cv::dilate(image, image, makeMatSquare(7));
+    cv::threshold(image, image, 127, 255, CV_THRESH_BINARY);
     debug(image);
 
-    cv::erode(image, image, makeMatSquare(9));
-    debug(image);
+    cv::Mat skeleton(image.size(), image.type(), cv::Scalar(0));
+    cv::Mat tmp, eroded;
+    cv::Mat element = cv::getStructuringElement(cv::MORPH_CROSS, { 3, 3 });
+    do {
+        cv::erode(image, eroded, element);
+        cv::dilate(eroded, tmp, element);
+        cv::subtract(image, tmp, tmp);
+        cv::bitwise_or(skeleton, tmp, skeleton);
+        image = std::move(eroded);
+    } while (cv::countNonZero(image) > 0);
+    image = std::move(skeleton);
 
-    cv::GaussianBlur(image, image, { 7, 7 }, 1);
-    debug(image);
-
-    cv::threshold(image, image, 0.4, 0, CV_THRESH_TOZERO);
     debug(image);
 
     if (debug_) {
@@ -121,40 +107,51 @@ void ClockFaceReader::preprocess(cv::Mat &image) {
     }
 }
 
-int ClockFaceReader::determineInnerRadius(cv::Mat const &image) {
-    cv::Point center = image.size() / 2;
-    int max_radius = cv::min(image.cols, image.rows) / 3;
-    for (int radius = 1; radius < max_radius; radius++) {
-        cv::Mat mask = cv::Mat::zeros(image.size(), image.type());
-        cv::circle(mask, center, radius, cv::Scalar::all(1), -1);
-        if (cv::countNonZero(image.mul(mask)) > 0)
-            return radius;
+bool ClockFaceReader::pointBelongsToCenter(cv::Point const &center, int radius, cv::Point const &p) {
+    int dx = center.x - p.x;
+    int dy = center.y - p.y;
+    return std::sqrt(dx * dx + dy * dy) <= radius;
+}
+
+std::vector<std::pair<cv::Point, cv::Point>> ClockFaceReader::filterLines(cv::Point const &center, int radius, std::vector<cv::Vec4i> const &points) {
+    std::vector<std::pair<cv::Point, cv::Point>> result;
+    for (auto const &p : points) {
+        auto pp = vec4iToPointPair(p);
+        if (pointBelongsToCenter(center, radius, pp.first)) {
+            result.push_back({ pp.first, pp.second });
+        } else if (pointBelongsToCenter(center, radius, pp.second)) {
+            result.push_back({ pp.second, pp.first });
+        }
     }
-    return -1;
+    return result;
 }
 
-std::pair<int, int> ClockFaceReader::countNonZeroOnRadius(cv::Mat const &image, cv::Point const &center, float angle, int radius, int offset) const {
-    cv::Mat mask = cv::Mat::zeros(image.size(), image.type());
-    cv::Point start_point, end_point;
-    start_point.x = center.x + std::sin(angle) * offset;
-    start_point.y = center.y - std::cos(angle) * offset;
-    end_point.x = center.x + std::sin(angle) * radius;
-    end_point.y = center.y - std::cos(angle) * radius;
-    cv::line(mask, center, end_point, cv::Scalar::all(1));
-    auto count = cv::countNonZero(image.mul(mask));
-    auto max_count = cv::countNonZero(mask);
-    return { count, max_count };
+int ClockFaceReader::lineLength(std::pair<cv::Point, cv::Point> const &line) {
+    int dx = line.first.x - line.second.x;
+    int dy = line.first.y - line.second.y;
+    return std::sqrt(dx * dx + dy * dy);
 }
 
-int ClockFaceReader::angleToHours(float angle) const {
+float ClockFaceReader::lineAngle(std::pair<cv::Point, cv::Point> const &line) {
+    int dx = line.first.x - line.second.x;
+    int dy = line.first.y - line.second.y;
+    return (2 * CV_PI) - (std::atan2(dy, dx) + CV_PI);
+}
+
+int ClockFaceReader::angleToHours(float angle) {
     int hours = std::floor(angle / (2 * CV_PI) * 12);
     return hours != 0 ? hours : 12;
 }
 
-int ClockFaceReader::angleToMinutes(float angle) const {
-    return std::round(angle / (2 * CV_PI) * 60);
+int ClockFaceReader::angleToMinutes(float angle) {
+    int minutes = std::round(angle / (2 * CV_PI) * 60);
+    return minutes != 60 ? minutes : 0;
 }
 
-cv::Mat ClockFaceReader::makeMatSquare(int size) const {
+cv::Mat ClockFaceReader::makeMatSquare(int size) {
     return cv::getStructuringElement(cv::MORPH_RECT, { size, size });
+}
+
+std::pair<cv::Point, cv::Point> ClockFaceReader::vec4iToPointPair(cv::Vec4i const & vec) {
+    return { cv::Point(vec[0], vec[1]), cv::Point(vec[2], vec[3]) };
 }
