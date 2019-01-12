@@ -11,6 +11,12 @@
     <ClCompile Include="ClockFace.cpp">
       <Filter>ClockFace</Filter>
     </ClCompile>
+    <ClCompile Include="ClockFaceReader.cpp">
+      <Filter>ClockFaceReader</Filter>
+    </ClCompile>
+    <ClCompile Include="Algorithm.cpp">
+      <Filter>Algorithm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Gradient">
@@ -22,6 +28,12 @@
     <Filter Include="ClockFace">
       <UniqueIdentifier>{18344f43-84ac-4b4c-b222-a3aa474336ed}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ClockFaceReader">
+      <UniqueIdentifier>{bbde1e96-a90b-43ee-9115-381dd4f7d3d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Algorithm">
+      <UniqueIdentifier>{3fe863f4-78e5-41ff-9b6a-7cfdf7b69fa8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Gradient.h">
@@ -32,6 +44,12 @@
     </ClInclude>
     <ClInclude Include="ClockFace.h">
       <Filter>ClockFace</Filter>
+    </ClInclude>
+    <ClInclude Include="ClockFaceReader.h">
+      <Filter>ClockFaceReader</Filter>
+    </ClInclude>
+    <ClInclude Include="Algorithm.h">
+      <Filter>Algorithm</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

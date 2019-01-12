@@ -2,7 +2,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+#include <conio.h>
+
 #include "ClockFaceFinder.h"
+#include "ClockFaceReader.h"
 
 int main(int argc, char const *argv[]) {
     if (argc != 2) {
@@ -28,6 +31,21 @@ int main(int argc, char const *argv[]) {
         cv::imshow("Result", *clock);
         while (cv::waitKey() != 27)
             ;
+
+        cv::destroyAllWindows();
+
+        ClockFaceReader cfr(*clock, 128);
+        cfr.setDebug(true);
+        auto steps = cfr.getSteps();
+        for (auto const &step : steps) {
+            cv::imshow("Debug", step);
+            cv::waitKey();
+        }
+        cv::destroyAllWindows();
+
+        auto time = cfr.getTime();
+        std::cout << time.first << ':' << time.second << '\n';
+        getch();
     }
 
 	return 0;

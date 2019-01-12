@@ -142,14 +142,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Algorithm.cpp" />
     <ClCompile Include="ClockFace.cpp" />
     <ClCompile Include="ClockFaceFinder.cpp" />
+    <ClCompile Include="ClockFaceReader.cpp" />
     <ClCompile Include="Gradient.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Algorithm.h" />
     <ClInclude Include="ClockFace.h" />
     <ClInclude Include="ClockFaceFinder.h" />
+    <ClInclude Include="ClockFaceReader.h" />
     <ClInclude Include="Gradient.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
