@@ -13,7 +13,7 @@ int main(int argc, char const *argv[]) {
         std::cout << "Usage: " << argv[0] << " image.png\n"
             << "Image not specified, trying to open `image.png`\n";
     }
-    auto image = cv::imread("image2.jpg", CV_LOAD_IMAGE_GRAYSCALE);
+    auto image = cv::imread("image.png", CV_LOAD_IMAGE_GRAYSCALE);
     if (image.empty()) {
         std::cerr << "Image not found.\n";
         return 1;
@@ -55,13 +55,15 @@ int main(int argc, char const *argv[]) {
             if (time->second < 9)
                 std::cout << '0';
             std::cout << time->second << '\n';
+
+            cv::imshow("Result", *cfr.getDetectedTimeImage());
+            while (cv::waitKey() != 27)
+                ;
         } else {
             std::cout << "Couldn't determine time.\n";
         }
-
-        cv::imshow("Result", steps.back());
-        while (cv::waitKey() != 27)
-            ;
+    } else {
+        std::cout << "No clock detected\n";
     }
 
 	return 0;

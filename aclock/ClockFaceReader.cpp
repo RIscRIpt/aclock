@@ -27,6 +27,19 @@ std::optional<std::pair<int, int>> ClockFaceReader::getTime() {
     return time_;
 }
 
+std::optional<cv::Mat> ClockFaceReader::getDetectedTimeImage() {
+    execute();
+    if (time_.first == -1 && time_.second == -1)
+        return std::nullopt;
+
+    cv::Mat image;
+    cv::cvtColor(image_, image, cv::COLOR_GRAY2BGR);
+    for (auto hand : clock_hands_) {
+        cv::line(image, hand.first, hand.second, cv::Scalar(0, 0, 255), 3, cv::LINE_AA);
+    }
+    return image;
+}
+
 void ClockFaceReader::execute() {
     if (executed_)
         return;
@@ -39,30 +52,25 @@ void ClockFaceReader::execute() {
     std::vector<cv::Vec4i> all_lines;
     cv::HoughLinesP(image, all_lines, 1, CV_PI / 360.0, 10, std::min(image.cols, image.rows) / 8, 1);
 
-    auto lines = filterLines(image.size() / 2, std::min(image.cols, image.rows) / 8, all_lines);
+    clock_hands_ = filterLines(image.size() / 2, std::min(image.cols, image.rows) / 8, all_lines);
+    scaleClockHands(clock_hands_, resize_factor);
 
-    if (debug_) {
-        cv::Mat debug_image;
-        cv::cvtColor(image, debug_image, cv::COLOR_GRAY2BGR);
-        for (auto line : lines) {
-            cv::line(debug_image, line.first, line.second, cv::Scalar(0, 0, 255), 3, cv::LINE_AA);
+    if (clock_hands_.size() == 2) {
+        if (lineLength(clock_hands_[0]) > lineLength(clock_hands_[1])) {
+            std::swap(clock_hands_[0], clock_hands_[1]);
         }
-        debug(debug_image);
-    }
-
-    if (lines.size() == 2) {
-        if (lineLength(lines[0]) > lineLength(lines[1])) {
-            std::swap(lines[0], lines[1]);
-        }
-
-        time_.first = angleToHours(lineAngle(lines[0]));
-        time_.second = angleToMinutes(lineAngle(lines[1]));
+        time_.first = angleToHours(lineAngle(clock_hands_[0]));
+        time_.second = angleToMinutes(lineAngle(clock_hands_[1]));
     }
 }
 
 void ClockFaceReader::preprocess(cv::Mat &image) {
     if (debug_) {
         std::cout << "preprocessing\n";
+    }
+
+    if (image.type() != CV_8U) {
+        throw std::runtime_error("image.type() must be CV_8U");
     }
 
     debug(image);
@@ -74,7 +82,7 @@ void ClockFaceReader::preprocess(cv::Mat &image) {
     cv::circle(mask, image.size() / 2, std::min(image.rows, image.cols) / 4, cv::Scalar::all(1));
     auto total_non_zero = cv::countNonZero(mask);
     mask = mask.mul(image);
-    cv::threshold(mask, mask, 0.5, 1, CV_THRESH_BINARY);
+    cv::threshold(mask, mask, 127, 255, CV_THRESH_BINARY);
     auto masked_non_zero = cv::countNonZero(mask);
     if (masked_non_zero >= total_non_zero / 2) {
         image = 255 - image;
@@ -82,8 +90,8 @@ void ClockFaceReader::preprocess(cv::Mat &image) {
         mask = cv::Mat::zeros(image.size(), image.type());
         cv::circle(mask, image.size() / 2, std::min(image.rows, image.cols) / 2, cv::Scalar::all(1), -1);
         image = image.mul(mask);
+        debug(image);
     }
-    debug(image);
 
     cv::threshold(image, image, 127, 255, CV_THRESH_BINARY);
     debug(image);
@@ -124,6 +132,13 @@ std::vector<std::pair<cv::Point, cv::Point>> ClockFaceReader::filterLines(cv::Po
         }
     }
     return result;
+}
+
+void ClockFaceReader::scaleClockHands(std::vector<std::pair<cv::Point, cv::Point>>& clock_hands, float factor) {
+    for (auto &hand : clock_hands) {
+        hand.first /= factor;
+        hand.second /= factor;
+    }
 }
 
 int ClockFaceReader::lineLength(std::pair<cv::Point, cv::Point> const &line) {
