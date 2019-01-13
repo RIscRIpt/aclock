@@ -13,13 +13,15 @@ int main(int argc, char const *argv[]) {
         std::cout << "Usage: " << argv[0] << " image.png\n"
             << "Image not specified, trying to open `image.png`\n";
     }
-    auto image = cv::imread("image.png", CV_LOAD_IMAGE_GRAYSCALE);
+    auto image = cv::imread("image2.jpg", CV_LOAD_IMAGE_GRAYSCALE);
     if (image.empty()) {
         std::cerr << "Image not found.\n";
         return 1;
     }
 
-    ClockFaceFinder cff(image, 0.75f, 128);
+    std::cout << "Detecting clock ...\n";
+
+    ClockFaceFinder cff(image, 0.0f, 256);
     cff.setDebug(true);
     auto steps = cff.getSteps();
     for (auto const &step : steps) {
@@ -33,6 +35,8 @@ int main(int argc, char const *argv[]) {
             ;
 
         cv::destroyAllWindows();
+
+        std::cout << "Reading clock ...\n";
 
         ClockFaceReader cfr(*clock, 128);
         cfr.setDebug(true);

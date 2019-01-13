@@ -135,16 +135,19 @@ int ClockFaceReader::lineLength(std::pair<cv::Point, cv::Point> const &line) {
 float ClockFaceReader::lineAngle(std::pair<cv::Point, cv::Point> const &line) {
     int dx = line.first.x - line.second.x;
     int dy = line.first.y - line.second.y;
-    return (2 * CV_PI) - (std::atan2(dy, dx) + CV_PI);
+    float angle = std::atan2(dy, dx) - CV_PI / 2.0;
+    if (angle < 0)
+        angle += CV_2PI;
+    return angle;
 }
 
 int ClockFaceReader::angleToHours(float angle) {
-    int hours = std::floor(angle / (2 * CV_PI) * 12);
+    int hours = std::floor(angle / CV_2PI * 12);
     return hours != 0 ? hours : 12;
 }
 
 int ClockFaceReader::angleToMinutes(float angle) {
-    int minutes = std::round(angle / (2 * CV_PI) * 60);
+    int minutes = std::round(angle / CV_2PI * 60);
     return minutes != 60 ? minutes : 0;
 }
 

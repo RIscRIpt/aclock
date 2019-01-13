@@ -10,7 +10,7 @@
 
 class ClockFaceFinder : public Algorithm {
 public:
-    ClockFaceFinder(cv::Mat const &image, float min_clock_alignment = 0.5f, int preferred_size = 128);
+    ClockFaceFinder(cv::Mat const &image, float minimal_match = 0.0f, int preferred_size = 128);
 
     virtual void execute();
     virtual std::vector<cv::Mat> const& getSteps();
@@ -24,7 +24,7 @@ private:
     cv::Mat makeMatSquare(int size) const;
     cv::Mat makeMatClock(float radius) const;
 
-    float const min_clock_alignment_;
+    float const minimal_match_;
 
     bool found_;
     ClockFace found_clock_;
