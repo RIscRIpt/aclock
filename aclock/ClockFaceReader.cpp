@@ -34,9 +34,8 @@ std::optional<cv::Mat> ClockFaceReader::getDetectedTimeImage() {
 
     cv::Mat image;
     cv::cvtColor(image_, image, cv::COLOR_GRAY2BGR);
-    for (auto hand : clock_hands_) {
-        cv::line(image, hand.first, hand.second, cv::Scalar(0, 0, 255), 3, cv::LINE_AA);
-    }
+    cv::line(image, clock_hands_.front().first, clock_hands_.front().second, cv::Scalar(0, 0, 255), 3, cv::LINE_AA);
+    cv::line(image, clock_hands_.back().first, clock_hands_.back().second, cv::Scalar(0, 255, 0), 3, cv::LINE_AA);
     return image;
 }
 
@@ -50,10 +49,18 @@ void ClockFaceReader::execute() {
     preprocess(image);
 
     std::vector<cv::Vec4i> all_lines;
-    cv::HoughLinesP(image, all_lines, 1, CV_PI / 360.0, 10, std::min(image.cols, image.rows) / 8, 1);
+    cv::HoughLinesP(image, all_lines, 0.5, CV_PI / 360.0, 20, 10, 10);
 
     clock_hands_ = filterLines(image.size() / 2, std::min(image.cols, image.rows) / 8, all_lines);
-    scaleClockHands(clock_hands_, resize_factor);
+
+    if (debug_) {
+        cv::Mat debug_image;
+        cv::cvtColor(image, debug_image, cv::COLOR_GRAY2BGR);
+        for (auto hand : clock_hands_) {
+            cv::line(debug_image, hand.first, hand.second, cv::Scalar(255, 0, 0), 3, cv::LINE_AA);
+        }
+        debug(debug_image);
+    }
 
     if (clock_hands_.size() == 2) {
         if (lineLength(clock_hands_[0]) > lineLength(clock_hands_[1])) {
@@ -62,6 +69,8 @@ void ClockFaceReader::execute() {
         time_.first = angleToHours(lineAngle(clock_hands_[0]));
         time_.second = angleToMinutes(lineAngle(clock_hands_[1]));
     }
+
+    scaleClockHands(clock_hands_, resize_factor);
 }
 
 void ClockFaceReader::preprocess(cv::Mat &image) {

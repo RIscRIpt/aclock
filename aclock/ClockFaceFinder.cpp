@@ -105,7 +105,8 @@ void ClockFaceFinder::find_clock(cv::Mat const &image, float resize_factor, floa
         cv::minMaxLoc(filtered, nullptr, &detection_candidate.max_value, nullptr, &detection_candidate.location);
         detection_candidate.percent = detection_candidate.max_value / max_value;
         if (detection_candidate.percent > detection_peak.percent) {
-            found_ = true;
+            if (detection_peak.percent >= minimal_match_)
+                found_ = true;
             detection_peak = detection_candidate;
         }
 
@@ -114,7 +115,7 @@ void ClockFaceFinder::find_clock(cv::Mat const &image, float resize_factor, floa
         }
     }
 
-    if (found_ && detection_peak.percent >= minimal_match_) {
+    if (found_) {
         found_clock_ = {
             detection_peak.location / resize_factor,
             static_cast<int>(detection_peak.radius / resize_factor)

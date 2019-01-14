@@ -21,7 +21,7 @@ int main(int argc, char const *argv[]) {
 
     std::cout << "Detecting clock ...\n";
 
-    ClockFaceFinder cff(image, 0.0f, 256);
+    ClockFaceFinder cff(image, 0.1f, 256);
     cff.setDebug(true);
     auto steps = cff.getSteps();
     for (auto const &step : steps) {
